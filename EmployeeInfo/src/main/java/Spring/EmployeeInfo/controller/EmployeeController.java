@@ -5,6 +5,7 @@ import Spring.EmployeeInfo.model.Employee;
 import Spring.EmployeeInfo.service.EmployeeService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,6 +20,7 @@ public class EmployeeController {
 
     @PostMapping("/add-employees")
     public ResponseEntity<?> addEmployee(@RequestBody@Valid Employee employee){
+
       return ResponseEntity.ok(employeeService.createEmployee(employee));
     }
 
@@ -28,7 +30,7 @@ public class EmployeeController {
     }
 
     @GetMapping("/get-employees-tax-deduction/{id}")
-    public List<EmployeeTaxDTO> employeesList(@PathVariable int id){
-        return employeeService.taxDeductionForCurrentFinancialYear(id);
+    public ResponseEntity<?> employeesList(@PathVariable int id){
+        return  employeeService.taxDeductionForCurrentFinancialYear(id);
     }
 }

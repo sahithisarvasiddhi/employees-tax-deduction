@@ -10,9 +10,5 @@ public interface EmployeeRepository extends JpaRepository<Employee,Integer> {
     Employee findById(int id);
 
 
-//    @Query("From Employee where emailId = :emailid")
-//    Employee findByEmail(String emailid);
-
-//    @Query("From Employee where id = :id")
-//    Employee findById(int id);
+    Employee findByEmailId(String emailId);
 }

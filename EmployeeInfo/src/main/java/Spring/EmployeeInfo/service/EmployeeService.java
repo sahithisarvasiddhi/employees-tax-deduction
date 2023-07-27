@@ -3,24 +3,14 @@ package Spring.EmployeeInfo.service;
 import Spring.EmployeeInfo.dto.EmployeeTaxDTO;
 import Spring.EmployeeInfo.model.Employee;
 import Spring.EmployeeInfo.repository.EmployeeRepository;
-
-import jakarta.validation.Validation;
-import jakarta.validation.ValidatorFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.validation.Validator;
-
-//import java.sql.Date;
 import java.time.LocalDate;
-import java.time.Month;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.List;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
 
-import static java.lang.Integer.getInteger;
-import static java.lang.Integer.parseInt;
 
 @Service
 public class EmployeeService {
@@ -31,32 +21,47 @@ public class EmployeeService {
 
 
     public ResponseEntity<?> createEmployee(Employee employee){
-        int existingEmployee = employee.getId();
-        List<Employee> listEmployees =employeeRepo.findAll();
-        for(Employee emp : listEmployees){
-            if(existingEmployee==(emp.getId()))
-            return ResponseEntity.badRequest().body("Employee with this Id already existed.........!");
+        Employee existingEmployee = employeeRepo.findByEmailId(employee.getEmailId());
+        Employee existingEmployeeId = employeeRepo.findById(employee.getId());
 
+        if (existingEmployee != null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Employee with this Email already existed.........!");
+            }
+        if (existingEmployeeId != null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Employee with this Id already existed.........!");
         }
-        Employee createdEmployee = employeeRepo.save(employee);
-            return ResponseEntity.ok(createdEmployee);
+            Set<String> phoneNumbers = employee.getPhoneNumber();
+            if(phoneNumbers != null){
+                for(String phoneNumber : phoneNumbers){
+                    if(!phoneNumber.matches("^\\d{10}$")){
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid PhoneNumber...!");
+                    }
+                }
+            }
 
+        Employee createdEmployee = employeeRepo.save(employee);
+            return ResponseEntity.status(HttpStatus.CREATED).body(createdEmployee);
     }
+
+
 
     public List<Employee> getAllEmployees() {
         List<Employee> employeeList = employeeRepo.findAll();
         return employeeList;
     }
 
-    public List<EmployeeTaxDTO> taxDeductionForCurrentFinancialYear(int id){
+    public ResponseEntity<?> taxDeductionForCurrentFinancialYear(int id){
         List<Employee> employeeList = employeeRepo.findAll();
         List<EmployeeTaxDTO> taxDeductionList = new ArrayList<>();
             Employee employee = employeeRepo.findById(id);
+            if(employee == null){
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Id not found");
+            }
 //        for(Employee employee : employeeList){
             double yearlySalary = Integer.parseInt(employee.getSalary()) * 12;
-            double financialSalary = financialYearSalary(employee);
-          double taxAmount = taxCalculation(financialSalary);
-          double cessAmount = calculateCess(financialSalary);
+            double financialSalary = financialYearSalary(employee) * Integer.parseInt(employee.getSalary())/30;
+            double taxAmount = taxCalculation(yearlySalary);
+            double cessAmount = calculateCess(yearlySalary);
 
           EmployeeTaxDTO employeeDTO = new EmployeeTaxDTO();
           employeeDTO.setId(employee.getId());
@@ -68,7 +73,7 @@ public class EmployeeService {
           employeeDTO.setCessAmount(cessAmount);
           taxDeductionList.add(employeeDTO);
 //        }
-         return  taxDeductionList;
+         return  ResponseEntity.ok(taxDeductionList);
     }
 
     public double taxCalculation( double salary ){
@@ -87,32 +92,41 @@ public class EmployeeService {
     }
 
     public  double financialYearSalary(Employee employee) {
-        Calendar currentDate = Calendar.getInstance();
-        currentDate.setTime(new Date());
 
-        Calendar joiningDate = Calendar.getInstance();
-        joiningDate.setTime(employee.getDateOfJoining());
+        LocalDate currentDate = LocalDate.now();
+        LocalDate doj = employee.getDateOfJoining().toLocalDate();
+        int startYear = currentDate.getYear();
+        int startMonth = 4;
+        int startDay = 1;
+        int endYear = startYear+1;
+        int endMonth = 3;
+        int endDay = 31;
+        LocalDate startDate = LocalDate.of(startYear, startMonth, startDay);
+        LocalDate endDate = LocalDate.of(endYear, endMonth, endDay);
 
-        int financialYearStartMonth = Calendar.APRIL;
-        int financialYearStartYear = currentDate.get(Calendar.YEAR);
-        if (currentDate.get(Calendar.MONTH) < Calendar.APRIL) {
-            financialYearStartYear -= 1;
+        if (currentDate.getMonthValue() < Calendar.APRIL) {
+            startYear -= 1;
         }
-        joiningDate.set(Calendar.YEAR, financialYearStartYear);
-        joiningDate.set(Calendar.MONTH, financialYearStartMonth);
 
-        int monthsWorked = (currentDate.get(Calendar.YEAR) - joiningDate.get(Calendar.YEAR)) * 12 +
-                currentDate.get(Calendar.MONTH) - joiningDate.get(Calendar.MONTH);
-
-        double totalSalary = Integer.parseInt(employee.getSalary()) * monthsWorked;
-
-        return totalSalary;
-
+        double daysInFinancialYear = 0.0;
+        if(doj.getYear() < startYear) {
+            daysInFinancialYear = ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        }else if(doj.getYear() == startYear && doj.getMonthValue() < startMonth){
+            daysInFinancialYear = ChronoUnit.DAYS.between(startDate, endDate)+1;
+        }else if(doj.getYear() == startYear && doj.getMonthValue() >= startMonth){
+            daysInFinancialYear = ChronoUnit.DAYS.between(doj,endDate)+1;
+        }else if(doj.getYear() == startYear && doj.getMonthValue() > startMonth){
+            daysInFinancialYear = ChronoUnit.DAYS.between(doj,endDate)+1;
+        }else if(doj.getYear() == endYear && doj.getMonthValue() < startMonth){
+            daysInFinancialYear = ChronoUnit.DAYS.between(doj,endDate)+1;
+        }
+        return daysInFinancialYear;
     }
+
+
 
     public static double calculateCess(double yearlySalary) {
         double cessAmount = 0.0;
-
         double cessLimit = 2500000;
         double cessRate = 0.02;
 
@@ -120,7 +134,6 @@ public class EmployeeService {
             double amountExceedingLimit = yearlySalary - cessLimit;
             cessAmount = amountExceedingLimit * cessRate;
         }
-
         return cessAmount;
     }
 
